@@ -107,4 +107,12 @@ struct SpawnData : public SpawnMetadata
     SpawnData(SpawnObjectType t) : SpawnMetadata(t) {}
 };
 
+enum LinkedRespawnType
+{
+    LINKED_RESPAWN_CREATURE_TO_CREATURE  = 0,
+    LINKED_RESPAWN_CREATURE_TO_GO        = 1, // Creature is dependant on GameObject
+    LINKED_RESPAWN_GO_TO_GO              = 2,
+    LINKED_RESPAWN_GO_TO_CREATURE        = 3, // GameObject is dependant on Creature
+};
+
 #endif

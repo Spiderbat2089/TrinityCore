@@ -1101,6 +1101,26 @@ bool GameObject::LoadFromDB(ObjectGuid::LowType spawnId, Map* map, bool addToMap
     stmt->setUInt32(0, spawnId);
     trans2->Append(stmt);
 
+    stmt = WorldDatabase.GetPreparedStatement(WORLD_DEL_LINKED_RESPAWN);
+    stmt->setUInt32(0, spawnId);
+    stmt->setUInt32(1, LINKED_RESPAWN_GO_TO_GO);
+    trans2->Append(stmt);
+
+    stmt = WorldDatabase.GetPreparedStatement(WORLD_DEL_LINKED_RESPAWN);
+    stmt->setUInt32(0, spawnId);
+    stmt->setUInt32(1, LINKED_RESPAWN_GO_TO_CREATURE);
+    trans2->Append(stmt);
+
+    stmt = WorldDatabase.GetPreparedStatement(WORLD_DEL_LINKED_RESPAWN_MASTER);
+    stmt->setUInt32(0, spawnId);
+    stmt->setUInt32(1, LINKED_RESPAWN_GO_TO_GO);
+    trans2->Append(stmt);
+
+    stmt = WorldDatabase.GetPreparedStatement(WORLD_DEL_LINKED_RESPAWN_MASTER);
+    stmt->setUInt32(0, spawnId);
+    stmt->setUInt32(1, LINKED_RESPAWN_CREATURE_TO_GO);
+    trans2->Append(stmt);
+
     WorldDatabase.CommitTransaction(trans2);
 
     return true;
