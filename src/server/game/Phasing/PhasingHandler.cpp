@@ -54,7 +54,7 @@ inline void ForAllControlled(Unit* unit, Func&& func)
         if (controlled->GetTypeId() != TYPEID_PLAYER)
             func(controlled);
 
-    for (uint8 i = 0; i < MAX_SUMMON_SLOT; ++i)
+    for (uint8 i = 0; i < unit->m_SummonSlot.size(); ++i)
         if (!unit->m_SummonSlot[i].IsEmpty())
             if (Creature* summon = unit->GetMap()->GetCreature(unit->m_SummonSlot[i]))
                 func(summon);

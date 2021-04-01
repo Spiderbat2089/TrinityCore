@@ -356,7 +356,7 @@ Unit::Unit(bool isWorldObject) :
     for (uint8 i = 0; i < CURRENT_MAX_SPELL; ++i)
         m_currentSpells[i] = nullptr;
 
-    for (uint8 i = 0; i < MAX_SUMMON_SLOT; ++i)
+    for (uint8 i = 0; i < m_SummonSlot.size(); ++i)
         m_SummonSlot[i].Clear();
 
     for (uint8 i = 0; i < MAX_GAMEOBJECT_SLOT; ++i)
@@ -5743,7 +5743,7 @@ bool Unit::isAttackingPlayer() const
         if ((*itr)->isAttackingPlayer())
             return true;
 
-    for (uint8 i = 0; i < MAX_SUMMON_SLOT; ++i)
+    for (uint8 i = 0; i < m_SummonSlot.size(); ++i)
         if (m_SummonSlot[i])
             if (Creature* summon = GetMap()->GetCreature(m_SummonSlot[i]))
                 if (summon->isAttackingPlayer())
@@ -5856,31 +5856,6 @@ bool Unit::HasAuraState(AuraStateType flag, SpellInfo const* spellProto, Unit co
     }
 
     return HasFlag(UNIT_FIELD_AURASTATE, 1 << (flag - 1));
-}
-
-void Unit::SetOwnerGUID(ObjectGuid owner)
-{
-    if (GetOwnerGUID() == owner)
-        return;
-
-    SetGuidValue(UNIT_FIELD_SUMMONEDBY, owner);
-    if (!owner)
-        return;
-
-    // Update owner dependent fields
-    Player* player = ObjectAccessor::GetPlayer(*this, owner);
-    if (!player || !player->HaveAtClient(this)) // if player cannot see this unit yet, he will receive needed data with create object
-        return;
-
-    SetFieldNotifyFlag(UF_FLAG_OWNER);
-
-    UpdateData udata(GetMapId());
-    WorldPacket packet;
-    BuildValuesUpdateBlockForPlayer(&udata, player);
-    udata.BuildPacket(&packet);
-    player->SendDirectMessage(&packet);
-
-    RemoveFieldNotifyFlag(UF_FLAG_OWNER);
 }
 
 Unit* Unit::GetOwner() const
@@ -6031,7 +6006,7 @@ void Unit::SetMinion(Minion* minion, bool apply)
         if (minion->HasUnitTypeMask(UNIT_MASK_CONTROLABLE_GUARDIAN))
             AddGuidValue(UNIT_FIELD_SUMMON, minion->GetGUID());
 
-        if (minion->m_Properties && SummonTitle(minion->m_Properties->Title) == SummonTitle::Companion)
+        if (minion->m_Properties && SummonPropertiesSlot(minion->m_Properties->Slot) == SummonPropertiesSlot::Critter)
             SetCritterGUID(minion->GetGUID());
 
         // PvP, FFAPvP
@@ -6054,7 +6029,7 @@ void Unit::SetMinion(Minion* minion, bool apply)
         if (m_Controlled.find(minion) != m_Controlled.end())
             m_Controlled.erase(minion);
 
-        if (minion->m_Properties && SummonTitle(minion->m_Properties->Title) == SummonTitle::Companion)
+        if (minion->m_Properties && SummonPropertiesSlot(minion->m_Properties->Slot) == SummonPropertiesSlot::Critter)
             if (GetCritterGUID() == minion->GetGUID())
                 SetCritterGUID(ObjectGuid::Empty);
 
@@ -6455,7 +6430,7 @@ void Unit::RemoveCharmAuras()
 
 void Unit::UnsummonAllTotems()
 {
-    for (uint8 i = 0; i < MAX_SUMMON_SLOT; ++i)
+    for (uint8 i = 0; i < m_SummonSlot.size(); ++i)
     {
         if (!m_SummonSlot[i])
             continue;
@@ -8940,11 +8915,11 @@ void Unit::FollowTarget(Unit* target)
         if (SummonPropertiesEntry const* properties = summon->m_Properties)
         {
             // Allied summons, pet summons join a formation unless the following exceptions are being met.
-            if (properties->Control == SUMMON_CATEGORY_ALLY || properties->Control == SUMMON_CATEGORY_PET)
+            if (SummonPropertiesControl(properties->Control) == SummonPropertiesControl::Guardian || SummonPropertiesControl(properties->Control) == SummonPropertiesControl::Pet)
                 joinFormation = true;
 
             // Companion minipets will always be able to catch up to their target
-            if (properties->Slot == SUMMON_SLOT_MINIPET)
+            if (SummonPropertiesSlot(properties->Slot) == SummonPropertiesSlot::Critter)
             {
                 joinFormation = false;
                 catchUpToTarget = true;
@@ -8953,7 +8928,7 @@ void Unit::FollowTarget(Unit* target)
             }
 
             // Quest npcs follow their target outside of formations
-            if (properties->Slot == SUMMON_SLOT_QUEST)
+            if (SummonPropertiesSlot(properties->Slot) == SummonPropertiesSlot::Quest)
             {
                 joinFormation = false;
                 distance = DEFAULT_FOLLOW_DISTANCE;
@@ -10688,6 +10663,16 @@ void Unit::TriggerAurasProcOnEvent(ProcEventInfo& eventInfo, AuraApplicationProc
 SpellSchoolMask Unit::GetMeleeDamageSchoolMask() const
 {
     return SPELL_SCHOOL_MASK_NORMAL;
+}
+
+void Unit::SetPetGUID(ObjectGuid guid)
+{
+    m_SummonSlot[AsUnderlyingType(SummonPropertiesSlot::None)] = guid;
+}
+
+ObjectGuid Unit::GetPetGUID() const
+{
+    return m_SummonSlot[AsUnderlyingType(SummonPropertiesSlot::None)];
 }
 
 ObjectGuid Unit::GetCharmerOrOwnerGUID() const
@@ -13725,7 +13710,7 @@ void Unit::OutDebugInfo() const
 
     std::ostringstream o;
     o << "Summon Slot: ";
-    for (uint32 i = 0; i < MAX_SUMMON_SLOT; ++i)
+    for (uint32 i = 0; i < m_SummonSlot.size(); ++i)
         o << m_SummonSlot[i].ToString() << ", ";
 
     TC_LOG_DEBUG("entities.unit", "%s", o.str().c_str());

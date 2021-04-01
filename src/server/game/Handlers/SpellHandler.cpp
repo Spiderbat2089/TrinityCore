@@ -614,7 +614,7 @@ void WorldSession::HandleTotemDestroyed(WorldPacket& recvPacket)
     recvPacket >> guid;
 
     ++slotId;
-    if (slotId >= MAX_TOTEM_SLOT)
+    if (slotId > AsUnderlyingType(SummonPropertiesSlot::Totem4))
         return;
 
     if (!_player->m_SummonSlot[slotId])

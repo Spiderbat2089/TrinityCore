@@ -853,48 +853,45 @@ TempSummon* MapTransport::SummonPassenger(uint32 entry, Position const& pos, Tem
         return nullptr;
 
     uint32 mask = UNIT_MASK_SUMMON;
+    bool inheritPhaseShiftFromSummoner = summoner != nullptr;
     if (properties)
     {
-        switch (properties->Control)
+        switch (SummonPropertiesControl(properties->Control))
         {
-            case SUMMON_CATEGORY_PET:
-                mask = UNIT_MASK_GUARDIAN;
+            case SummonPropertiesControl::None: // Wild summons
+                if (properties->GetFlags().HasFlag(SummonPropertiesFlags::IgnoreSummonersPhase))
+                    inheritPhaseShiftFromSummoner = false;
                 break;
-            case SUMMON_CATEGORY_PUPPET:
-                mask = UNIT_MASK_PUPPET;
-                break;
-            case SUMMON_CATEGORY_VEHICLE:
+            case SummonPropertiesControl::Guardian:
                 mask = UNIT_MASK_MINION;
                 break;
-            case SUMMON_CATEGORY_WILD:
-            case SUMMON_CATEGORY_ALLY:
-            case SUMMON_CATEGORY_UNK:
-            {
-                switch (SummonTitle(properties->Title))
-                {
-                    case SummonTitle::Minion:
-                    case SummonTitle::Guardian:
-                    case SummonTitle::Runeblade:
-                        mask = UNIT_MASK_GUARDIAN;
-                        break;
-                    case SummonTitle::Totem:
-                    case SummonTitle::Lightwell:
-                        mask = UNIT_MASK_TOTEM;
-                        break;
-                    case SummonTitle::Vehicle:
-                    case SummonTitle::Mount:
-                        mask = UNIT_MASK_SUMMON;
-                        break;
-                    case SummonTitle::Companion:
-                        mask = UNIT_MASK_MINION;
-                        break;
-                    default:
-                        break;
-                }
+            case SummonPropertiesControl::Pet:
+                mask = UNIT_MASK_GUARDIAN;
                 break;
-            }
+            case SummonPropertiesControl::Possessed:
+                mask = UNIT_MASK_PUPPET;
+                break;
+            case SummonPropertiesControl::PossessedVehicle:
+                mask = UNIT_MASK_MINION;
+                break;
             default:
                 return nullptr;
+        }
+
+        switch (SummonPropertiesSlot(properties->Slot))
+        {
+            case SummonPropertiesSlot::Totem1:
+            case SummonPropertiesSlot::Totem2:
+            case SummonPropertiesSlot::Totem3:
+            case SummonPropertiesSlot::Totem4:
+            case SummonPropertiesSlot::AnyAvailableTotem:
+                mask = UNIT_MASK_TOTEM;
+                break;
+            case SummonPropertiesSlot::Critter:
+                mask = UNIT_MASK_MINION;
+                break;
+            default:
+                break;
         }
     }
 

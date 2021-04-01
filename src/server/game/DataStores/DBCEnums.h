@@ -569,61 +569,57 @@ enum TotemCategoryType
 };
 
 // SummonProperties.dbc, col 1
-enum SummonPropGroup
+enum class SummonPropertiesControl : uint8
 {
-    SUMMON_PROP_GROUP_UNKNOWN1       = 0,                   // 1160 spells in 3.0.3
-    SUMMON_PROP_GROUP_UNKNOWN2       = 1,                   // 861 spells in 3.0.3
-    SUMMON_PROP_GROUP_PETS           = 2,                   // 52 spells in 3.0.3, pets mostly
-    SUMMON_PROP_GROUP_CONTROLLABLE   = 3,                   // 13 spells in 3.0.3, mostly controllable
-    SUMMON_PROP_GROUP_UNKNOWN3       = 4                    // 86 spells in 3.0.3, taxi/mounts
+    None                = 0,
+    Guardian            = 1,
+    Pet                 = 2,
+    Possessed           = 3,
+    PossessedVehicle    = 4
 };
 
-// SummonProperties.dbc, col 3
-enum SummonPropType
+// SummonProperties.dbc, col 4
+enum class SummonPropertiesSlot : int8
 {
-    SUMMON_PROP_TYPE_UNKNOWN         = 0,                   // different summons, 1330 spells in 3.0.3
-    SUMMON_PROP_TYPE_SUMMON          = 1,                   // generic summons, 49 spells in 3.0.3
-    SUMMON_PROP_TYPE_GUARDIAN        = 2,                   // summon guardian, 393 spells in 3.0.3
-    SUMMON_PROP_TYPE_ARMY            = 3,                   // summon army, 5 spells in 3.0.3
-    SUMMON_PROP_TYPE_TOTEM           = 4,                   // summon totem, 169 spells in 3.0.3
-    SUMMON_PROP_TYPE_CRITTER         = 5,                   // critter/minipet, 195 spells in 3.0.3
-    SUMMON_PROP_TYPE_DK              = 6,                   // summon DRW/Ghoul, 2 spells in 3.0.3
-    SUMMON_PROP_TYPE_BOMB            = 7,                   // summon bot/bomb, 4 spells in 3.0.3
-    SUMMON_PROP_TYPE_PHASING         = 8,                   // something todo with DK prequest line, 2 spells in 3.0.3
-    SUMMON_PROP_TYPE_SIEGE_VEH       = 9,                   // summon different vehicles, 14 spells in 3.0.3
-    SUMMON_PROP_TYPE_DRAKE_VEH       = 10,                  // summon drake (vehicle), 3 spells
-    SUMMON_PROP_TYPE_LIGHTWELL       = 11,                  // summon lightwell, 6 spells in 3.0.3
-    SUMMON_PROP_TYPE_JEEVES          = 12,                  // summon Jeeves, 1 spell in 3.3.5a
-    SUMMON_PROP_TYPE_LASHTAIL        = 13                   // Lashtail Hatchling, 1 spell in 4.2.2
+    None                = 0,
+    Totem1              = 1, // Fire Totem
+    Totem2              = 2, // Earth Totem
+    Totem3              = 3, // Water Totem
+    Totem4              = 4, // Air Totem
+    Critter             = 5,
+    Quest               = 6,
+    AnyAvailableTotem   = -1
 };
 
 // SummonProperties.dbc, col 5
-enum SummonPropFlags
+enum class SummonPropertiesFlags : uint32
 {
-    SUMMON_PROP_FLAG_NONE            = 0x00000000,          // 1342 spells in 3.0.3
-    SUMMON_PROP_FLAG_UNK1            = 0x00000001,          // 75 spells in 3.0.3, something unfriendly
-    SUMMON_PROP_FLAG_UNK2            = 0x00000002,          // 616 spells in 3.0.3, something friendly
-    SUMMON_PROP_FLAG_UNK3            = 0x00000004,          // 22 spells in 3.0.3, no idea...
-    SUMMON_PROP_FLAG_UNK4            = 0x00000008,          // 49 spells in 3.0.3, some mounts
-    SUMMON_PROP_FLAG_PERSONAL_SPAWN  = 0x00000010,          // Only Visible to Summoner
-    SUMMON_PROP_FLAG_UNK6            = 0x00000020,          // 0 spells in 3.3.5, unused
-    SUMMON_PROP_FLAG_UNK7            = 0x00000040,          // 12 spells in 3.0.3, no idea
-    SUMMON_PROP_FLAG_UNK8            = 0x00000080,          // 4 spells in 3.0.3, no idea
-    SUMMON_PROP_FLAG_UNK9            = 0x00000100,          // 51 spells in 3.0.3, no idea, many quest related
-    SUMMON_PROP_FLAG_UNK10           = 0x00000200,          // 51 spells in 3.0.3, something defensive
-    SUMMON_PROP_FLAG_UNK11           = 0x00000400,          // 3 spells, requires something near?
-    SUMMON_PROP_FLAG_UNK12           = 0x00000800,          // 30 spells in 3.0.3, no idea
-    SUMMON_PROP_FLAG_UNK13           = 0x00001000,          // Lightwell, Jeeves, Gnomish Alarm-o-bot, Build vehicles(wintergrasp)
-    SUMMON_PROP_FLAG_UNK14           = 0x00002000,          // Guides, player follows
-    SUMMON_PROP_FLAG_UNK15           = 0x00004000,          // Force of Nature, Shadowfiend, Feral Spirit, Summon Water Elemental
-    SUMMON_PROP_FLAG_UNK16           = 0x00008000,          // Light/Dark Bullet, Soul/Fiery Consumption, Twisted Visage, Twilight Whelp. Phase related?
-    SUMMON_PROP_FLAG_PERSONAL_GROUP_SPAWN = 0x00010000,     // Only Visible to Summoner's Group
-    SUMMON_PROP_FLAG_UNK18           = 0x00020000,
-    SUMMON_PROP_FLAG_UNK19           = 0x00040000,
-    SUMMON_PROP_FLAG_UNK20           = 0x00080000,
-    SUMMON_PROP_FLAG_TOTEM           = 0x00100000,           // Totems
-    SUMMON_PROP_FLAG_COMPANION       = 0x00200000
+    None                            = 0,
+    AttackSummoner                  = 0x00000001,
+    HelpWhenSummonedInCombat        = 0x00000002,
+    UseLevelOffset                  = 0x00000004,
+    DespawnOnSummonerDeath          = 0x00000008, 
+    OnlyVisibleToSummoner           = 0x00000010,
+    CannotDismissPet                = 0x00000020,
+    UseDemonTimeout                 = 0x00000040,
+    UnlimitedSummons                = 0x00000080,
+    UseCreatureLevel                = 0x00000100,
+    JoinSummonersSpawnGroup         = 0x00000200,
+    DoNotToggle                     = 0x00000400,
+    DespawnWhenExpired              = 0x00000800,
+    UseSummonerFaction              = 0x00001000,
+    DoNotFollowMountedSummoner      = 0x00002000,
+    SavePetAutocast                 = 0x00004000,
+    IgnoreSummonersPhase            = 0x00008000, // (Wild Only)
+    OnlyVisibleToSummonersGroup     = 0x00010000,
+    DespawnOnSummonerLogout         = 0x00020000,
+    CastRideVehicleSpellOnSummoner  = 0x00040000,
+    GuardianActsLikeAPet            = 0x00080000,
+    DontSnapSessileToGround         = 0x00100000,
+    SummonsFromPetJournal           = 0x00200000
 };
+
+DEFINE_ENUM_FLAG(SummonPropertiesFlags);
 
 enum VehicleSeatFlags
 {

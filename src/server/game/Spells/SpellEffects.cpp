@@ -1839,13 +1839,13 @@ void Spell::EffectSummonType(SpellEffIndex effIndex)
 
     ObjectGuid privateObjectOwner = [&]()
     {
-        if (!(properties->Flags & (SUMMON_PROP_FLAG_PERSONAL_SPAWN | SUMMON_PROP_FLAG_PERSONAL_GROUP_SPAWN)))
+        if (!properties->GetFlags().HasFlag(SummonPropertiesFlags::OnlyVisibleToSummoner | SummonPropertiesFlags::OnlyVisibleToSummonersGroup))
             return ObjectGuid::Empty;
 
         if (m_originalCaster->IsPrivateObject())
             return m_originalCaster->GetPrivateObjectOwner();
 
-        if (properties->Flags & SUMMON_PROP_FLAG_PERSONAL_GROUP_SPAWN)
+        if (properties->GetFlags().HasFlag(SummonPropertiesFlags::OnlyVisibleToSummoner))
             if (m_originalCaster->IsPlayer() && m_originalCaster->ToPlayer()->GetGroup())
                 return m_originalCaster->ToPlayer()->GetGroup()->GetGUID();
 
@@ -1890,14 +1890,17 @@ void Spell::EffectSummonType(SpellEffIndex effIndex)
     }
 
     // Some totems are being summoned with a certain amount of health
-    uint32 health = (properties->Flags & SUMMON_PROP_FLAG_TOTEM) != 0 && damage ? damage : 0;
+    // @todo: this is wrong. This needs to be replaced with SummonPropertiesParamType which is a serverside column that needs to be implemented.
+    uint32 health = (properties->GetFlags().HasFlag(SummonPropertiesFlags::DontSnapSessileToGround)) != 0 && damage ? damage : 0;
 
     if (numSummons == 1)
     {
         if (TempSummon* summon = m_caster->GetMap()->SummonCreature(entry, *destTarget, properties, duration, m_originalCaster, m_spellInfo->Id, 0, privateObjectOwner, health))
         {
-            // Summoned vehicles shall be mounted right away if possible
-            if (properties->Control == SUMMON_CATEGORY_VEHICLE && summon->IsVehicle())
+            bool rideSummoner = properties->GetFlags().HasFlag(SummonPropertiesFlags::CastRideVehicleSpellOnSummoner) && m_originalCaster->GetVehicleKit();
+            bool rideSummon = SummonPropertiesControl(properties->Control) == SummonPropertiesControl::PossessedVehicle && summon->IsVehicle();
+
+            if (rideSummoner || rideSummon)
             {
                 // The spell that this effect will trigger. It has SPELL_AURA_CONTROL_VEHICLE
                 uint32 spellId = VEHICLE_SPELL_RIDE_HARDCODED;
@@ -1915,7 +1918,10 @@ void Spell::EffectSummonType(SpellEffIndex effIndex)
                 if (basePoints > 0 && basePoints < MAX_VEHICLE_SEATS)
                     args.SpellValueOverrides.AddMod(SPELLVALUE_BASE_POINT0, basePoints);
 
-                m_originalCaster->CastSpell(summon, spellId, args);
+                if (rideSummon)
+                    m_originalCaster->CastSpell(summon, spellId, args);
+                else if (rideSummoner)
+                    summon->CastSpell(m_originalCaster, spellId, args);
             }
             ExecuteLogEffectSummonObject(effIndex, summon);
         }
@@ -3376,18 +3382,9 @@ void Spell::EffectScriptEffect(SpellEffIndex effIndex)
                 }
                 // Stoneclaw Totem
                 case 55328: // Rank 1
-                case 55329: // Rank 2
-                case 55330: // Rank 3
-                case 55332: // Rank 4
-                case 55333: // Rank 5
-                case 55335: // Rank 6
-                case 55278: // Rank 7
-                case 58589: // Rank 8
-                case 58590: // Rank 9
-                case 58591: // Rank 10
                 {
                     // Cast Absorb on totems
-                    for (uint8 slot = SUMMON_SLOT_TOTEM_FIRE; slot < MAX_TOTEM_SLOT; ++slot)
+                    for (uint8 slot = AsUnderlyingType(SummonPropertiesSlot::Totem1); slot <= AsUnderlyingType(SummonPropertiesSlot::Totem4); ++slot)
                     {
                         if (!unitTarget->m_SummonSlot[slot])
                             continue;
@@ -4645,7 +4642,7 @@ void Spell::EffectDestroyAllTotems(SpellEffIndex /*effIndex*/)
         return;
 
     int32 mana = 0;
-    for (uint8 slot = SUMMON_SLOT_TOTEM_FIRE; slot < MAX_TOTEM_SLOT; ++slot)
+    for (uint8 slot = AsUnderlyingType(SummonPropertiesSlot::Totem1); slot <= AsUnderlyingType(SummonPropertiesSlot::Totem4); ++slot)
     {
         if (!m_caster->m_SummonSlot[slot])
             continue;

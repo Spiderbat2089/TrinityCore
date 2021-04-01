@@ -1227,7 +1227,7 @@ public:
         void HandleDummy(AuraEffect const* /*aurEff*/)
         {
             Unit* target = GetTarget();
-            for (uint8 i = SUMMON_SLOT_TOTEM_FIRE; i < MAX_TOTEM_SLOT; ++i)
+            for (uint8 i = AsUnderlyingType(SummonPropertiesSlot::Totem1); i <= AsUnderlyingType(SummonPropertiesSlot::Totem4); ++i)
                 if (!target->m_SummonSlot[i])
                     return;
 

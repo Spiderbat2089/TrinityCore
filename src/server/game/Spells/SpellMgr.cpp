@@ -5837,15 +5837,6 @@ void SpellMgr::LoadSpellInfoCorrections()
         }
     }
 
-    if (SummonPropertiesEntry* properties = const_cast<SummonPropertiesEntry*>(sSummonPropertiesStore.LookupEntry(121)))
-        properties->Title = AsUnderlyingType(SummonTitle::Totem);
-    if (SummonPropertiesEntry* properties = const_cast<SummonPropertiesEntry*>(sSummonPropertiesStore.LookupEntry(647))) // 52893
-        properties->Title = AsUnderlyingType(SummonTitle::Totem);
-    if (SummonPropertiesEntry* properties = const_cast<SummonPropertiesEntry*>(sSummonPropertiesStore.LookupEntry(3069))) // Wild Mushroom
-        properties->Title = AsUnderlyingType(SummonTitle::Minion);
-    if (SummonPropertiesEntry* properties = const_cast<SummonPropertiesEntry*>(sSummonPropertiesStore.LookupEntry(628))) // Hungry Plaguehound
-        properties->Control = SUMMON_CATEGORY_PET;
-
     if (LockEntry* entry = const_cast<LockEntry*>(sLockStore.LookupEntry(36))) // 3366 Opening, allows to open without proper key
         entry->Type[2] = LOCK_KEY_NONE;
 

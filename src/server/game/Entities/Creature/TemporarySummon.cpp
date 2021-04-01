@@ -179,7 +179,7 @@ void TempSummon::InitStats(uint32 duration)
 
     if (!m_Properties)
         return;
-
+ 
     if (owner)
     {
         int32 slot = m_Properties->Slot;
@@ -194,16 +194,13 @@ void TempSummon::InitStats(uint32 duration)
             owner->m_SummonSlot[slot] = GetGUID();
         }
 
-        if (m_Properties->Control != SUMMON_CATEGORY_WILD)
+        if (SummonPropertiesControl(m_Properties->Control) != SummonPropertiesControl::None)
         {
-            if (!m_Properties->Faction)
-                SetFaction(owner->GetFaction());
-
             // Creator guid is always set for allied summons
             SetCreatorGUID(owner->GetGUID());
 
-            // Summons inherit their player summoner's guild data
-            if (owner && (owner->IsPlayer() || owner->IsTotem()))
+            // Summons inherit their guild guid from their summoner
+            if (owner && owner->GetGuidValue(OBJECT_FIELD_DATA))
             {
                 ObjectGuid guildGUID = owner->GetGuidValue(OBJECT_FIELD_DATA);
                 if (guildGUID)
@@ -218,8 +215,10 @@ void TempSummon::InitStats(uint32 duration)
             owner->m_Controlled.insert(this);
     }
 
-    // If property has a faction defined, use it.
-    if (m_Properties->Faction)
+    // Initializing faction
+    if (owner && m_Properties->GetFlags().HasFlag(SummonPropertiesFlags::UseSummonerFaction))
+        SetFaction(owner->GetFaction());
+    else if (m_Properties->Faction)
         SetFaction(m_Properties->Faction);
 }
 
@@ -326,7 +325,7 @@ void Minion::InitStats(uint32 duration)
                 totemOwner->m_Controlled.insert(this);
     }
 
-    if (m_Properties && m_Properties->Slot == SUMMON_SLOT_MINIPET)
+    if (m_Properties && SummonPropertiesSlot(m_Properties->Slot) == SummonPropertiesSlot::Critter)
     {
         SelectLevel();       // some summoned creaters have different from 1 DB data for level/hp
         SetUInt32Value(UNIT_NPC_FLAGS, GetCreatureTemplate()->npcflag);
@@ -361,7 +360,7 @@ void Minion::RemoveFromWorld()
 
 bool Minion::IsGuardianPet() const
 {
-    return IsPet() || (m_Properties && m_Properties->Control == SUMMON_CATEGORY_PET);
+    return IsPet() || (m_Properties && SummonPropertiesControl(m_Properties->Control) == SummonPropertiesControl::Pet);
 }
 
 bool Minion::IsWarlockMinion() const
@@ -384,7 +383,7 @@ Guardian::Guardian(SummonPropertiesEntry const* properties, Unit* owner, bool is
 {
     memset(m_statFromOwner, 0, sizeof(float)*MAX_STATS);
     m_unitTypeMask |= UNIT_MASK_GUARDIAN;
-    if (properties && SummonTitle(properties->Title) == SummonTitle::Pet)
+    if (properties && properties->GetFlags().HasFlag(SummonPropertiesFlags::GuardianActsLikeAPet))
     {
         m_unitTypeMask |= UNIT_MASK_CONTROLABLE_GUARDIAN;
         InitCharmInfo();

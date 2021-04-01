@@ -3770,49 +3770,6 @@ enum DiminishingGroup : uint16
     DIMINISHING_MAX
 };
 
-enum SummonCategory
-{
-    SUMMON_CATEGORY_WILD        = 0,
-    SUMMON_CATEGORY_ALLY        = 1,
-    SUMMON_CATEGORY_PET         = 2,
-    SUMMON_CATEGORY_PUPPET      = 3,
-    SUMMON_CATEGORY_VEHICLE     = 4,
-    SUMMON_CATEGORY_UNK         = 5  // as of patch 3.3.5a only Bone Spike in Icecrown Citadel
-                                     // uses this category
-};
-
-enum class SummonTitle : int32
-{
-    None                = 0,
-    Pet                 = 1,
-    Guardian            = 2,
-    Minion              = 3,
-    Totem               = 4,
-    Companion           = 5,
-    Runeblade           = 6,
-    Construct           = 7,
-    Opponent            = 8,    // Related to phases and DK prequest line (3.3.5a)
-    Vehicle             = 9,
-    Mount               = 10,   // Oculus and Argent Tournament vehicles (3.3.5a)
-    Lightwell           = 11,
-    Butler              = 12,
-    aka                 = 13
-};
-
-enum SummonSlot
-{
-    SUMMON_SLOT_PET         = 0,
-    SUMMON_SLOT_TOTEM_FIRE  = 1,
-    SUMMON_SLOT_TOTEM_EARTH = 2,
-    SUMMON_SLOT_TOTEM_WATER = 3,
-    SUMMON_SLOT_TOTEM_AIR   = 4,
-    SUMMON_SLOT_MINIPET     = 5,
-    SUMMON_SLOT_QUEST       = 6,
-
-    MAX_SUMMON_SLOT
-};
-
-#define MAX_TOTEM_SLOT      5
 #define MAX_GAMEOBJECT_SLOT 4
 
 enum EventId
