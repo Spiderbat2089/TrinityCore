@@ -44,15 +44,6 @@ Pet::Pet(Player* owner, PetType type) :
     ASSERT(GetOwner());
 
     m_unitTypeMask |= UNIT_MASK_PET;
-    if (type == HUNTER_PET)
-        m_unitTypeMask |= UNIT_MASK_HUNTER_PET;
-
-    if (!(m_unitTypeMask & UNIT_MASK_CONTROLABLE_GUARDIAN))
-    {
-        m_unitTypeMask |= UNIT_MASK_CONTROLABLE_GUARDIAN;
-        InitCharmInfo();
-    }
-
     m_name = "Pet";
 }
 
@@ -222,8 +213,8 @@ bool Pet::LoadPetData(Player* owner, uint32 petEntry, uint32 petnumber, bool cur
             SetUInt32Value(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED);
             break;
         default:
-            if (!IsPetGhoul())
-                TC_LOG_ERROR("entities.pet", "Pet have incorrect type (%u) for pet loading.", getPetType());
+            //if (!IsPetGhoul())
+            //    TC_LOG_ERROR("entities.pet", "Pet have incorrect type (%u) for pet loading.", getPetType());
             break;
     }
 
@@ -293,7 +284,7 @@ bool Pet::LoadPetData(Player* owner, uint32 petEntry, uint32 petnumber, bool cur
         transport->AddPassenger(this);
     }
 
-    owner->SetMinion(this, true);
+    //owner->SetMinion(this, true);
     map->AddToMap(ToCreature());
 
     InitTalentForLevel();                                   // set original talents points before spell loading
@@ -327,11 +318,13 @@ bool Pet::LoadPetData(Player* owner, uint32 petEntry, uint32 petnumber, bool cur
     else
         SetPower(POWER_MANA, GetMaxPower(POWER_MANA));
 
+    /*
     if (IsPetGhoul())
     {
         CastSpell(this, SPELL_PET_RISEN_GHOUL_SPAWN_IN, true);
         CastSpell(this, SPELL_PET_RISEN_GHOUL_SELF_STUN, true);
     }
+    */
 
     TC_LOG_DEBUG("entities.pet", "New Pet has guid %u", GetGUID().GetCounter());
 
@@ -758,12 +751,15 @@ bool Guardian::InitStatsForLevel(uint8 petlevel)
     ASSERT(cinfo);
 
     SetLevel(petlevel);
+    Unit* summoner = GetSummoner();
+    if (!summoner)
+        return false;
 
     //Determine pet type
     PetType petType = MAX_PET_TYPE;
     if (IsPet() && GetOwner()->GetTypeId() == TYPEID_PLAYER)
     {
-        switch (m_owner->getClass())
+        switch (summoner->getClass())
         {
             case CLASS_WARLOCK:
             case CLASS_SHAMAN:
@@ -774,7 +770,6 @@ bool Guardian::InitStatsForLevel(uint8 petlevel)
                 break;
             case CLASS_HUNTER:
                 petType = HUNTER_PET;
-                m_unitTypeMask |= UNIT_MASK_HUNTER_PET;
                 break;
             default:
                 TC_LOG_ERROR("entities.pet", "Unknown type pet %u is summoned by player class %u",
@@ -841,215 +836,17 @@ bool Guardian::InitStatsForLevel(uint8 petlevel)
     // Power
     if (petType == HUNTER_PET) // Hunter pets have focus
         SetPowerType(POWER_FOCUS);
+    /*
     else if (IsPetGhoul() || IsRisenAlly()) // DK pets have energy
     {
         SetPowerType(POWER_ENERGY);
         SetFullPower(POWER_ENERGY);
     }
     else
+    */
         SetPowerType(POWER_MANA);
 
-    // Damage
-    SetBonusDamage(0);
-    switch (petType)
-    {
-        case SUMMON_PET:
-        {
-            SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel - (petlevel / 4)));
-            SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel + (petlevel / 4)));
-            break;
-        }
-        case HUNTER_PET:
-        {
-            SetUInt32Value(UNIT_FIELD_PETNEXTLEVELEXP, uint32(sObjectMgr->GetXPForLevel(petlevel) * PET_XP_FACTOR));
-            //these formula may not be correct; however, it is designed to be close to what it should be
-            //this makes dps 0.5 of pets level
-            SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel - (petlevel / 4)));
-            //damage range is then petlevel / 2
-            SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel + (petlevel / 4)));
-            //damage is increased afterwards as strength and pet scaling modify attack power
-            break;
-        }
-        default:
-        {
-            switch (GetEntry())
-            {
-                case ENTRY_TREANT:
-                {
-                    float bonusDmg = GetOwner()->SpellBaseDamageBonusDone(SPELL_SCHOOL_MASK_NATURE) * 0.15f;
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel * 2.5f - (petlevel / 2) + bonusDmg));
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel * 2.5f + (petlevel / 2) + bonusDmg));
-                    SetCreateHealth(m_owner->CountPctFromMaxHealth(10));
-                    break;
-                }
-                case ENTRY_EARTH_ELEMENTAL:
-                {
-                    if (Unit* owner = m_owner->GetOwner())
-                        SetCreateHealth(owner->CountPctFromMaxHealth(75));
-
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel * 4 - petlevel));
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel * 4 + petlevel));
-                    break;
-                }
-                case ENTRY_FIRE_ELEMENTAL:
-                {
-                    if (Unit* owner = m_owner->GetOwner())
-                    {
-                        SetCreateHealth(owner->CountPctFromMaxHealth(75));
-                        SetBonusDamage(int32(owner->SpellBaseDamageBonusDone(SPELL_SCHOOL_MASK_FIRE) * 0.5f));
-                    }
-
-                    SetCreateMana(28 + 10 * petlevel);
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel * 4 - petlevel));
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel * 4 + petlevel));
-                    break;
-                }
-                case ENTRY_SHADOWFIEND:
-                {
-                    SetCreateMana(28 + 10 * petlevel);
-                    SetCreateHealth(28 + 30 * petlevel);
-                    int32 bonus_dmg = int32(GetOwner()->SpellBaseDamageBonusDone(SPELL_SCHOOL_MASK_SHADOW)* 0.375f);
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float((petlevel * 4 - petlevel) + bonus_dmg));
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float((petlevel * 4 + petlevel) + bonus_dmg));
-
-                    break;
-                }
-                case ENTRY_VENOMOUS_SNAKE:
-                {
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float((petlevel / 2) - 25));
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float((petlevel / 2) - 18));
-                    break;
-                }
-                case ENTRY_VIPER:
-                {
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel / 2 - 10));
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel / 2));
-                    break;
-                }
-                case ENTRY_SPIRIT_WOLF:
-                {
-                    SetCreateHealth(30 * petlevel);
-                    float dmg_multiplier = 0.50f;
-                    if (m_owner->GetAuraEffect(63271, 0)) // Glyph of Feral Spirit
-                        dmg_multiplier = 0.80f;
-
-                    SetBonusDamage(int32(m_owner->GetTotalAttackPowerValue(BASE_ATTACK) * dmg_multiplier));
-
-                    // wolf attack speed is 1.5s
-                    SetAttackTime(BASE_ATTACK, cinfo->BaseAttackTime);
-
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float((petlevel * 4 - petlevel)));
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float((petlevel * 4 + petlevel)));
-
-                    // 14AP == 1dps, wolf's strike speed == 1.5s so dmg = AP / 14 * 1.5
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, m_owner->GetTotalAttackPowerValue(BASE_ATTACK) * dmg_multiplier / 14);
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, m_owner->GetTotalAttackPowerValue(BASE_ATTACK) * dmg_multiplier / 14);
-
-                    SetModifierValue(UNIT_MOD_ARMOR, BASE_VALUE, float(GetOwner()->GetArmor()) * 0.35f);  // Bonus Armor (35% of player armor)
-                    SetModifierValue(UNIT_MOD_STAT_STAMINA, BASE_VALUE, float(GetOwner()->GetStat(STAT_STAMINA)) * 0.3f);  // Bonus Stamina (30% of player stamina)
-                    if (!HasAura(58877))        // Spirit Hunt
-                        AddAura(58877, this);
-                    if (!HasAura(61783))        // Feral Pet Scaling
-                        AddAura(61783, this);
-                    break;
-                }
-                case ENTRY_GARGOYLE:
-                {
-                    SetCreateHealth(m_owner->CountPctFromMaxHealth(70));
-                    if (Player* owner = m_owner->ToPlayer())
-                    {
-                        float bonus = owner->GetRatingBonusValue(CR_HASTE_MELEE);
-                        bonus += owner->GetTotalAuraModifier(SPELL_AURA_MOD_MELEE_HASTE_3) +
-                            owner->GetTotalAuraModifier(SPELL_AURA_MOD_MELEE_RANGED_HASTE);
-                        ApplyCastTimePercentMod(bonus, true);
-                    }
-
-                    SetBonusDamage(int32(GetOwner()->GetTotalAttackPowerValue(BASE_ATTACK) * 0.5f));
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel - (petlevel / 4)));
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel + (petlevel / 4)));
-                    break;
-                }
-                case ENTRY_BLOODWORM:
-                {
-                    SetCreateHealth(m_owner->CountPctFromMaxHealth(18));
-                    SetAttackTime(BASE_ATTACK, 1400);
-                    SetBonusDamage(int32(m_owner->GetTotalAttackPowerValue(BASE_ATTACK) * 0.006f));
-                    float minDamage = m_owner->GetTotalAttackPowerValue(BASE_ATTACK) * 0.05f;
-                    float maxDamage = m_owner->GetTotalAttackPowerValue(BASE_ATTACK) * 0.05f;
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, minDamage);
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, maxDamage);
-                    if (!HasAura(50453))        // Blood Siphon
-                        CastSpell(this, 50453, true);
-                    break;
-                }
-                case ENTRY_INFERNAL:
-                {
-                    if (m_owner->GetTypeId() == TYPEID_PLAYER) // Infernal get 100% of owners spell, Immolation has his own coef.
-                        SetBonusDamage(int32(m_owner->SpellBaseDamageBonusDone(SPELL_SCHOOL_MASK_SPELL)));
-
-                    float mod = 1;
-                    if (petlevel < 60)
-                        mod = 5 + (petlevel - 50) / 4;
-                    if (petlevel < 70)
-                        mod = 10 + (petlevel - 70) / 4;
-                    else if (petlevel <= 80)
-                        mod = 15 + (petlevel - 80) / 2;
-                    else
-                        mod = 20 + (petlevel - 85) / 2;
-                    if (mod < 0)
-                        mod = 0;
-                    float minDamage = (petlevel - (petlevel / 4)) * mod;
-                    float maxDamage = (petlevel + (petlevel / 4)) * mod;
-                    float attackPower = ((minDamage + maxDamage) /4) * 7;
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, minDamage);
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, maxDamage);
-                    SetModifierValue(UNIT_MOD_ATTACK_POWER, BASE_VALUE, attackPower);
-                    SetCreateHealth(m_owner->CountPctFromMaxHealth(40));
-                    break;
-                }
-                case ENTRY_EBON_IMP:
-                    SetBonusDamage(m_owner->SpellBaseDamageBonusDone(SPELL_SCHOOL_MASK_FIRE));
-                    break;
-                case ENTRY_ARMY_OF_THE_DEAD_GHOUL:
-                {
-                    SetCreateHealth(m_owner->CountPctFromMaxHealth(30));
-                    SetBonusDamage(int32(GetOwner()->GetTotalAttackPowerValue(BASE_ATTACK) * 0.5f));
-                    float minDamage = m_owner->GetTotalAttackPowerValue(BASE_ATTACK) * 0.05f;
-                    float maxDamage = m_owner->GetTotalAttackPowerValue(BASE_ATTACK) * 0.05f;
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, minDamage);
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, maxDamage);
-                    if (!HasAura(62137))        // Avoidance
-                        CastSpell(this, 62137, true);
-                    break;
-                }
-                case ENTRY_GHOUL:
-                    if (!HasAura(62137))        // Avoidance
-                        CastSpell(this, 62137, true);
-                    break;
-                default:
-                {
-                    /* ToDo: Check what 5f5d2028 broke/fixed and how much of Creature::UpdateLevelDependantStats()
-                     * should be copied here (or moved to another method or if that function should be called here
-                     * or not just for this default case)
-                     */
-                    CreatureBaseStats const* stats = sObjectMgr->GetCreatureBaseStats(petlevel, cinfo->unit_class);
-                    float basedamage = stats->GenerateBaseDamage(cinfo);
-
-                    float weaponBaseMinDamage = basedamage;
-                    float weaponBaseMaxDamage = basedamage * 1.5f;
-
-                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, weaponBaseMinDamage);
-                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, weaponBaseMaxDamage);
-                    break;
-                }
-            }
-            break;
-        }
-    }
-
     UpdateAllStats();
-
-    SetFullHealth();
     SetPower(POWER_MANA, GetMaxPower(POWER_MANA));
     return true;
 }
@@ -1418,8 +1215,8 @@ bool Pet::addSpell(uint32 spellId, ActiveStates active /*= ACT_DECIDE*/, PetSpel
     m_spells[spellId] = newspell;
 
     // Do not go further if this Attribute exists
-    if (spellInfo->HasAttribute(SPELL_ATTR4_HIDDEN_IN_SPELLBOOK) && !IsWarlockMinion())
-         return true;
+    //if (spellInfo->HasAttribute(SPELL_ATTR4_HIDDEN_IN_SPELLBOOK) && !IsWarlockMinion())
+    //     return true;
 
     if (spellInfo->IsPassive() && (!spellInfo->CasterAuraState || HasAuraState(AuraStateType(spellInfo->CasterAuraState))))
         CastSpell(this, spellId, true);
@@ -1960,7 +1757,9 @@ void Pet::SynchronizeLevelWithOwner()
 
 Player* Pet::GetOwner() const
 {
-    return Minion::GetOwner()->ToPlayer();
+    return nullptr;
+
+    //return Minion::GetOwner()->ToPlayer();
 }
 
 float Pet::GetNativeObjectScale() const

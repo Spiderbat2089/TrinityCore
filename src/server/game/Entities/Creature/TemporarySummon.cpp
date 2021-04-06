@@ -25,13 +25,14 @@
 #include "Player.h"
 
 TempSummon::TempSummon(SummonPropertiesEntry const* properties, Unit* owner, bool isWorldObject) :
-Creature(isWorldObject), m_Properties(properties), m_type(TEMPSUMMON_MANUAL_DESPAWN),
-m_timer(0), m_lifetime(0)
+    Creature(isWorldObject), m_Properties(properties), m_type(TEMPSUMMON_MANUAL_DESPAWN),
+    m_timer(0), m_lifetime(0)
 {
+    m_unitTypeMask |= UNIT_MASK_SUMMON;
+
     if (owner)
         m_summonerGUID = owner->GetGUID();
 
-    m_unitTypeMask |= UNIT_MASK_SUMMON;
 }
 
 Unit* TempSummon::GetSummoner() const
@@ -157,7 +158,7 @@ void TempSummon::Update(uint32 diff)
     }
 }
 
-void TempSummon::InitStats(uint32 duration)
+void TempSummon::InitializeBeforeAddToMap(uint32 duration)
 {
     ASSERT(!IsPet());
 
@@ -169,60 +170,37 @@ void TempSummon::InitStats(uint32 duration)
 
     Unit* owner = GetSummoner();
 
+    // Possessed summons
     if (owner && IsTrigger() && m_spells[0])
-    {
-        SetFaction(owner->GetFaction());
-        SetLevel(owner->getLevel());
         if (owner->GetTypeId() == TYPEID_PLAYER)
             m_ControlledByPlayer = true;
-    }
 
     if (!m_Properties)
         return;
- 
-    if (owner)
-    {
-        int32 slot = m_Properties->Slot;
-        if (slot > 0)
-        {
-            if (owner->m_SummonSlot[slot] && owner->m_SummonSlot[slot] != GetGUID())
-            {
-                Creature* oldSummon = GetMap()->GetCreature(owner->m_SummonSlot[slot]);
-                if (oldSummon && oldSummon->IsSummon())
-                    oldSummon->ToTempSummon()->UnSummon();
-            }
-            owner->m_SummonSlot[slot] = GetGUID();
-        }
 
-        if (SummonPropertiesControl(m_Properties->Control) != SummonPropertiesControl::None)
-        {
-            // Creator guid is always set for allied summons
-            SetCreatorGUID(owner->GetGUID());
-
-            // Summons inherit their guild guid from their summoner
-            if (owner && owner->GetGuidValue(OBJECT_FIELD_DATA))
-            {
-                ObjectGuid guildGUID = owner->GetGuidValue(OBJECT_FIELD_DATA);
-                if (guildGUID)
-                {
-                    SetGuidValue(OBJECT_FIELD_DATA, owner->GetGuidValue(OBJECT_FIELD_DATA));
-                    SetUInt16Value(OBJECT_FIELD_TYPE, 1, 1); // Has guild data
-                }
-            }
-        }
-
-        if (owner->IsTotem())
-            owner->m_Controlled.insert(this);
-    }
-
-    // Initializing faction
+    // Initialize faction
     if (owner && m_Properties->GetFlags().HasFlag(SummonPropertiesFlags::UseSummonerFaction))
         SetFaction(owner->GetFaction());
     else if (m_Properties->Faction)
         SetFaction(m_Properties->Faction);
+
+    // Initialize level
+    if (owner && !m_Properties->GetFlags().HasFlag(SummonPropertiesFlags::UseCreatureLevel))
+        SetLevel(owner->getLevel());
+
+    // Summons inherit their guild guid from their summoner, even if the summon has been summoned by another creature
+    if (owner && owner->GetGuidValue(OBJECT_FIELD_DATA))
+    {
+        ObjectGuid guildGUID = owner->GetGuidValue(OBJECT_FIELD_DATA);
+        if (!guildGUID.IsEmpty())
+        {
+            SetGuidValue(OBJECT_FIELD_DATA, owner->GetGuidValue(OBJECT_FIELD_DATA));
+            SetUInt16Value(OBJECT_FIELD_TYPE, 1, 1); // Has guild data
+        }
+    }
 }
 
-void TempSummon::InitSummon()
+void TempSummon::InitializeAfterAddToMap()
 {
     if (Unit* owner = GetSummoner())
     {
@@ -297,163 +275,22 @@ void TempSummon::RemoveFromWorld()
     Creature::RemoveFromWorld();
 }
 
-Minion::Minion(SummonPropertiesEntry const* properties, Unit* owner, bool isWorldObject)
-    : TempSummon(properties, owner, isWorldObject), m_owner(owner)
+Guardian::Guardian(SummonPropertiesEntry const* properties, Unit* owner, bool isWorldObject) : TempSummon(properties, owner, isWorldObject)
 {
-    ASSERT(m_owner);
-    m_unitTypeMask |= UNIT_MASK_MINION;
-
-    /// @todo: Find correct way
-    InitCharmInfo();
-}
-
-void Minion::InitStats(uint32 duration)
-{
-    TempSummon::InitStats(duration);
-    SetReactState(REACT_PASSIVE);
-
-    // Controlable guardians and minions shall receive a summoner guid
-    if ((IsMinion() || IsControlableGuardian()) && !IsTotem() && !IsVehicle())
-        GetOwner()->SetMinion(this, true);
-    else if (!IsPet() && !IsHunterPet())
-    {
-        GetOwner()->m_Controlled.insert(this);
-
-        // Store the totem elementals in players controlled list as well to trigger aggro mechanics
-        if (GetOwner()->IsTotem())
-            if (Unit* totemOwner = GetOwner()->GetOwner())
-                totemOwner->m_Controlled.insert(this);
-    }
-
-    if (m_Properties && SummonPropertiesSlot(m_Properties->Slot) == SummonPropertiesSlot::Critter)
-    {
-        SelectLevel();       // some summoned creaters have different from 1 DB data for level/hp
-        SetUInt32Value(UNIT_NPC_FLAGS, GetCreatureTemplate()->npcflag);
-        SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
-    }
-}
-
-void Minion::RemoveFromWorld()
-{
-    if (!IsInWorld())
-        return;
-
-    Unit* owner = GetOwner();
-
-    if ((IsMinion() || IsControlableGuardian()) && !IsTotem() && !IsVehicle())
-        owner->SetMinion(this, false);
-    else if (!IsPet() && !IsHunterPet())
-    {
-        if (owner->m_Controlled.find(this) != owner->m_Controlled.end())
-            owner->m_Controlled.erase(this);
-        else
-            TC_LOG_FATAL("entities.unit", "Minion::RemoveFromWorld: Owner %s tried to remove a non-existing controlled unit %s from controlled unit set.", owner->GetGUID().ToString().c_str(), GetGUID().ToString().c_str());
-
-        if (owner->IsTotem())
-            if (Unit* totemOwner = owner->GetOwner())
-                if (totemOwner->m_Controlled.find(this) != totemOwner->m_Controlled.end())
-                    totemOwner->m_Controlled.erase(this);
-    }
-
-    TempSummon::RemoveFromWorld();
-}
-
-bool Minion::IsGuardianPet() const
-{
-    return IsPet() || (m_Properties && SummonPropertiesControl(m_Properties->Control) == SummonPropertiesControl::Pet);
-}
-
-bool Minion::IsWarlockMinion() const
-{
-    switch (GetEntry())
-    {
-        case ENTRY_IMP:
-        case ENTRY_VOIDWALKER:
-        case ENTRY_SUCCUBUS:
-        case ENTRY_FELHUNTER:
-        case ENTRY_FELGUARD:
-            return true;
-        default:
-            return false;
-    }
-}
-
-Guardian::Guardian(SummonPropertiesEntry const* properties, Unit* owner, bool isWorldObject) : Minion(properties, owner, isWorldObject)
-, m_bonusSpellDamage(0)
-{
-    memset(m_statFromOwner, 0, sizeof(float)*MAX_STATS);
     m_unitTypeMask |= UNIT_MASK_GUARDIAN;
-    if (properties && properties->GetFlags().HasFlag(SummonPropertiesFlags::GuardianActsLikeAPet))
-    {
-        m_unitTypeMask |= UNIT_MASK_CONTROLABLE_GUARDIAN;
-        InitCharmInfo();
-    }
 }
 
-void Guardian::InitStats(uint32 duration)
+void Guardian::InitializeBeforeAddToMap(uint32 duration)
 {
-    Minion::InitStats(duration);
+    TempSummon::InitializeBeforeAddToMap(duration);
 
-    InitStatsForLevel(GetOwner()->getLevel());
+    if (Unit* summoner = GetSummoner())
+        SetCreatorGUID(summoner->GetGUID());
 
-    if (GetOwner()->GetTypeId() == TYPEID_PLAYER && HasUnitTypeMask(UNIT_MASK_CONTROLABLE_GUARDIAN))
-        m_charmInfo->InitCharmCreateSpells();
 
-    SetReactState(REACT_AGGRESSIVE);
 }
 
-void Guardian::InitSummon()
+void Guardian::InitializeAfterAddToMap()
 {
-    TempSummon::InitSummon();
-
-    if (GetOwner()->GetTypeId() == TYPEID_PLAYER
-            && GetOwner()->GetMinionGUID() == GetGUID()
-            && !GetOwner()->GetCharmGUID())
-    {
-        GetOwner()->ToPlayer()->CharmSpellInitialize();
-    }
-}
-
-Puppet::Puppet(SummonPropertiesEntry const* properties, Unit* owner)
-    : Minion(properties, owner, false) //maybe true?
-{
-    ASSERT(m_owner->GetTypeId() == TYPEID_PLAYER);
-    m_unitTypeMask |= UNIT_MASK_PUPPET;
-}
-
-void Puppet::InitStats(uint32 duration)
-{
-    Minion::InitStats(duration);
-    SetLevel(GetOwner()->getLevel());
-    SetReactState(REACT_PASSIVE);
-}
-
-void Puppet::InitSummon()
-{
-    Minion::InitSummon();
-    if (!SetCharmedBy(GetOwner(), CHARM_TYPE_POSSESS))
-        ABORT();
-}
-
-void Puppet::Update(uint32 time)
-{
-    Minion::Update(time);
-    //check if caster is channelling?
-    if (IsInWorld())
-    {
-        if (!IsAlive())
-        {
-            UnSummon();
-            /// @todo why long distance .die does not remove it
-        }
-    }
-}
-
-void Puppet::RemoveFromWorld()
-{
-    if (!IsInWorld())
-        return;
-
-    RemoveCharmedBy(nullptr);
-    Minion::RemoveFromWorld();
+    TempSummon::InitializeAfterAddToMap();
 }

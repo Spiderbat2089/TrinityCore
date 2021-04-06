@@ -27,7 +27,7 @@
 #include "Player.h"
 #include "ScriptMgr.h"
 #include "Spline.h"
-#include "Totem.h"
+#include "TemporarySummon.h"
 #include "UpdateData.h"
 #include "Vehicle.h"
 #include "ZoneScript.h"
@@ -853,46 +853,17 @@ TempSummon* MapTransport::SummonPassenger(uint32 entry, Position const& pos, Tem
         return nullptr;
 
     uint32 mask = UNIT_MASK_SUMMON;
+
     bool inheritPhaseShiftFromSummoner = summoner != nullptr;
     if (properties)
     {
-        switch (SummonPropertiesControl(properties->Control))
+        if (SummonPropertiesControl(properties->Control) == SummonPropertiesControl::None)
         {
-            case SummonPropertiesControl::None: // Wild summons
-                if (properties->GetFlags().HasFlag(SummonPropertiesFlags::IgnoreSummonersPhase))
-                    inheritPhaseShiftFromSummoner = false;
-                break;
-            case SummonPropertiesControl::Guardian:
-                mask = UNIT_MASK_MINION;
-                break;
-            case SummonPropertiesControl::Pet:
-                mask = UNIT_MASK_GUARDIAN;
-                break;
-            case SummonPropertiesControl::Possessed:
-                mask = UNIT_MASK_PUPPET;
-                break;
-            case SummonPropertiesControl::PossessedVehicle:
-                mask = UNIT_MASK_MINION;
-                break;
-            default:
-                return nullptr;
+            if (properties->GetFlags().HasFlag(SummonPropertiesFlags::IgnoreSummonersPhase)) // only wild summons can ignore a summoner's phase
+                inheritPhaseShiftFromSummoner = false;
         }
-
-        switch (SummonPropertiesSlot(properties->Slot))
-        {
-            case SummonPropertiesSlot::Totem1:
-            case SummonPropertiesSlot::Totem2:
-            case SummonPropertiesSlot::Totem3:
-            case SummonPropertiesSlot::Totem4:
-            case SummonPropertiesSlot::AnyAvailableTotem:
-                mask = UNIT_MASK_TOTEM;
-                break;
-            case SummonPropertiesSlot::Critter:
-                mask = UNIT_MASK_MINION;
-                break;
-            default:
-                break;
-        }
+        else
+            mask = UNIT_MASK_GUARDIAN;
     }
 
     TempSummon* summon = nullptr;
@@ -904,14 +875,7 @@ TempSummon* MapTransport::SummonPassenger(uint32 entry, Position const& pos, Tem
         case UNIT_MASK_GUARDIAN:
             summon = new Guardian(properties, summoner, false);
             break;
-        case UNIT_MASK_PUPPET:
-            summon = new Puppet(properties, summoner);
-            break;
-        case UNIT_MASK_TOTEM:
-            summon = new Totem(properties, summoner);
-            break;
-        case UNIT_MASK_MINION:
-            summon = new Minion(properties, summoner, false);
+        default:
             break;
     }
 
@@ -941,7 +905,7 @@ TempSummon* MapTransport::SummonPassenger(uint32 entry, Position const& pos, Tem
     ///         because the current GameObjectModel cannot be moved without recreating
     summon->AddUnitState(UNIT_STATE_IGNORE_PATHFINDING);
 
-    summon->InitStats(duration);
+    summon->InitializeBeforeAddToMap(duration);
 
     if (!map->AddToMap<Creature>(summon))
     {
@@ -951,7 +915,7 @@ TempSummon* MapTransport::SummonPassenger(uint32 entry, Position const& pos, Tem
 
     _staticPassengers.insert(summon);
 
-    summon->InitSummon();
+    summon->InitializeAfterAddToMap();
     summon->SetTempSummonType(summonType);
 
     return summon;

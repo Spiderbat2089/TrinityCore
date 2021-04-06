@@ -70,7 +70,6 @@
 #include "SpellMgr.h"
 #include "SpellPackets.h"
 #include "TemporarySummon.h"
-#include "Totem.h"
 #include "Transport.h"
 #include "UpdateFieldFlags.h"
 #include "Util.h"
@@ -2662,17 +2661,14 @@ float Unit::GetUnitDodgeChance(WeaponAttackType attType, Unit const* victim) con
         chance += victim->GetFloatValue(PLAYER_DODGE_PERCENTAGE);
     else
     {
-        if (!victim->IsTotem())
-        {
-            int8 levelDifference = victim->getLevel() - getLevel();
-            if (levelDifference < 0)
-                levelDifference = 0;
-            else if (levelDifference > 3)
-                levelDifference = 3;
+        int8 levelDifference = victim->getLevel() - getLevel();
+        if (levelDifference < 0)
+            levelDifference = 0;
+        else if (levelDifference > 3)
+            levelDifference = 3;
 
-            chance += EnemyDodgeChance[levelDifference];
-            chance += victim->GetTotalAuraModifier(SPELL_AURA_MOD_DODGE_PERCENT);
-        }
+        chance += EnemyDodgeChance[levelDifference];
+        chance += victim->GetTotalAuraModifier(SPELL_AURA_MOD_DODGE_PERCENT);
     }
 
     // Reduce enemy dodge chance by SPELL_AURA_MOD_COMBAT_RESULT_CHANCE
@@ -2707,7 +2703,7 @@ float Unit::GetUnitParryChance(WeaponAttackType attType, Unit const* victim) con
     else
     {
         // Allow parries for creatures only if it's not a totem, does have a virtual item equipped and does not have CREATURE_FLAG_EXTRA_NO_PARRY
-        if (!victim->IsTotem() && (victim->GetUInt32Value(UNIT_VIRTUAL_ITEM_SLOT_ID + 0) || victim->GetUInt32Value(UNIT_VIRTUAL_ITEM_SLOT_ID + 1)) &&
+        if ((victim->GetUInt32Value(UNIT_VIRTUAL_ITEM_SLOT_ID + 0) || victim->GetUInt32Value(UNIT_VIRTUAL_ITEM_SLOT_ID + 1)) &&
             !(victim->ToCreature()->GetCreatureTemplate()->flags_extra & CREATURE_FLAG_EXTRA_NO_PARRY))
         {
             int32 levelDifference = victim->getLevelForTarget(this) - getLevel();
@@ -2760,7 +2756,7 @@ float Unit::GetUnitBlockChance(Unit const* victim) const
     }
     else
     {
-        if (!victim->IsTotem() && !(victim->ToCreature()->GetCreatureTemplate()->flags_extra & CREATURE_FLAG_EXTRA_NO_BLOCK))
+        if (!(victim->ToCreature()->GetCreatureTemplate()->flags_extra & CREATURE_FLAG_EXTRA_NO_BLOCK))
         {
             chance = 5.0f;
             chance += victim->GetTotalAuraModifier(SPELL_AURA_MOD_BLOCK_PERCENT);
@@ -3468,13 +3464,6 @@ void Unit::_UnapplyAura(AuraApplicationMap::iterator &i, AuraRemoveFlags removeM
 
     // all effect mustn't be applied
     ASSERT(!aurApp->GetEffectMask());
-
-    // Remove totem at next update if totem loses its aura
-    if (aurApp->GetRemoveMode().HasFlag(AuraRemoveFlags::Expired) && GetTypeId() == TYPEID_UNIT && IsTotem())
-    {
-        if (ToTotem()->GetSpell() == aura->GetId() && ToTotem()->GetTotemType() == TOTEM_PASSIVE)
-            ToTotem()->setDeathState(JUST_DIED);
-    }
 
     // Remove aurastates only if were not found
     if (!auraStateFound)
@@ -5323,8 +5312,8 @@ void Unit::UpdateDisplayPower()
                 {
                     if (pet->getPetType() == HUNTER_PET) // Hunter pets have focus
                         displayPower = POWER_FOCUS;
-                    else if (pet->IsPetGhoul() || pet->IsRisenAlly()) // DK pets have energy
-                        displayPower = POWER_ENERGY;
+                    // else if (pet->IsPetGhoul() || pet->IsRisenAlly()) // DK pets have energy
+                    //    displayPower = POWER_ENERGY;
                 }
             }
             break;
@@ -5895,36 +5884,6 @@ Player* Unit::GetAffectingPlayer() const
     return nullptr;
 }
 
-Minion* Unit::GetFirstMinion() const
-{
-    if (ObjectGuid pet_guid = GetMinionGUID())
-    {
-        if (Creature* pet = ObjectAccessor::GetCreatureOrPetOrVehicle(*this, pet_guid))
-            if (pet->HasUnitTypeMask(UNIT_MASK_MINION))
-                return (Minion*)pet;
-
-        TC_LOG_ERROR("entities.unit", "Unit::GetFirstMinion: Minion %s not exist.", pet_guid.ToString().c_str());
-        const_cast<Unit*>(this)->SetMinionGUID(ObjectGuid::Empty);
-    }
-
-    return nullptr;
-}
-
-Guardian* Unit::GetGuardianPet() const
-{
-    if (ObjectGuid pet_guid = GetPetGUID())
-    {
-        if (Creature* pet = ObjectAccessor::GetCreatureOrPetOrVehicle(*this, pet_guid))
-            if (pet->HasUnitTypeMask(UNIT_MASK_GUARDIAN))
-                return (Guardian*)pet;
-
-        TC_LOG_FATAL("entities.unit", "Unit::GetGuardianPet: Guardian %s not exist.", pet_guid.ToString().c_str());
-        const_cast<Unit*>(this)->SetPetGUID(ObjectGuid::Empty);
-    }
-
-    return nullptr;
-}
-
 Unit* Unit::GetCharm() const
 {
     if (ObjectGuid charm_guid = GetCharmGUID())
@@ -5954,6 +5913,7 @@ Unit* Unit::GetCharmerOrOwnerOrSelf() const
 
 void Unit::SetMinion(Minion* minion, bool apply)
 {
+    /*
     if (!minion)
     {
         TC_LOG_ERROR("entities.unit", "Unit::SetMinion: Unit %s tried to reference a non existing minion", GetGUID().ToString().c_str());
@@ -6085,6 +6045,8 @@ void Unit::SetMinion(Minion* minion, bool apply)
         }
     }
     UpdatePetCombatState();
+
+    */
 }
 
 void Unit::GetAllMinionsByEntry(std::list<Creature*>& Minions, uint32 entry)
@@ -6175,12 +6137,8 @@ void Unit::SetCharm(Unit* charm, bool apply)
         if (charm->IsWalking() != _isWalkingBeforeCharm)
             charm->SetWalk(_isWalkingBeforeCharm);
 
-        if (charm->GetTypeId() == TYPEID_PLAYER
-            || !charm->ToCreature()->HasUnitTypeMask(UNIT_MASK_MINION)
-            || charm->GetOwnerOrCreatorGUID() != GetGUID())
-        {
+        if (charm->GetTypeId() == TYPEID_PLAYER || charm->GetOwnerOrCreatorGUID() != GetGUID())
             m_Controlled.erase(charm);
-        }
     }
     UpdatePetCombatState();
 }

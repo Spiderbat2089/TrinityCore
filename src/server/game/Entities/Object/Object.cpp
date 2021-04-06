@@ -2030,43 +2030,13 @@ TempSummon* Map::SummonCreature(uint32 entry, Position const& pos, SummonPropert
     bool inheritPhaseShiftFromSummoner = summoner != nullptr;
     if (properties)
     {
-        switch (SummonPropertiesControl(properties->Control))
+        if (SummonPropertiesControl(properties->Control) == SummonPropertiesControl::None)
         {
-            case SummonPropertiesControl::None: // Wild summons
-                if (properties->GetFlags().HasFlag(SummonPropertiesFlags::IgnoreSummonersPhase))
-                    inheritPhaseShiftFromSummoner = false;
-                break;
-            case SummonPropertiesControl::Guardian:
-                mask = UNIT_MASK_MINION;
-                break;
-            case SummonPropertiesControl::Pet:
-                mask = UNIT_MASK_GUARDIAN;
-                break;
-            case SummonPropertiesControl::Possessed:
-                mask = UNIT_MASK_PUPPET;
-                break;
-            case SummonPropertiesControl::PossessedVehicle:
-                mask = UNIT_MASK_MINION;
-                break;
-            default:
-                return nullptr;
+            if (properties->GetFlags().HasFlag(SummonPropertiesFlags::IgnoreSummonersPhase)) // only wild summons can ignore a summoner's phase
+                inheritPhaseShiftFromSummoner = false;
         }
-
-        switch (SummonPropertiesSlot(properties->Slot))
-        {
-            case SummonPropertiesSlot::Totem1:
-            case SummonPropertiesSlot::Totem2:
-            case SummonPropertiesSlot::Totem3:
-            case SummonPropertiesSlot::Totem4:
-            case SummonPropertiesSlot::AnyAvailableTotem:
-                mask = UNIT_MASK_TOTEM;
-                break;
-            case SummonPropertiesSlot::Critter:
-                mask = UNIT_MASK_MINION;
-                break;
-            default:
-                break;
-        }
+        else
+            mask = UNIT_MASK_GUARDIAN;
     }
 
     TempSummon* summon = nullptr;
@@ -2078,14 +2048,7 @@ TempSummon* Map::SummonCreature(uint32 entry, Position const& pos, SummonPropert
         case UNIT_MASK_GUARDIAN:
             summon = new Guardian(properties, summoner, false);
             break;
-        case UNIT_MASK_PUPPET:
-            summon = new Puppet(properties, summoner);
-            break;
-        case UNIT_MASK_TOTEM:
-            summon = new Totem(properties, summoner);
-            break;
-        case UNIT_MASK_MINION:
-            summon = new Minion(properties, summoner, false);
+        default:
             break;
     }
 
@@ -2117,7 +2080,7 @@ TempSummon* Map::SummonCreature(uint32 entry, Position const& pos, SummonPropert
     // Initialize tempsummon fields
     summon->SetUInt32Value(UNIT_CREATED_BY_SPELL, spellId);
     summon->SetHomePosition(pos);
-    summon->InitStats(duration);
+    summon->InitializeBeforeAddToMap(duration);
     summon->SetPrivateObjectOwner(privateObjectOwner);
 
     // Handle health argument (totem health via base points)
@@ -2128,7 +2091,7 @@ TempSummon* Map::SummonCreature(uint32 entry, Position const& pos, SummonPropert
     }
 
     AddToMap(summon->ToCreature());
-    summon->InitSummon();
+    summon->InitializeAfterAddToMap();
 
     // call MoveInLineOfSight for nearby creatures
     Trinity::AIRelocationNotifier notifier(*summon);

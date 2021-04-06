@@ -1039,6 +1039,7 @@ void Creature::CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, 
 ########                         ########
 #######################################*/
 
+/*
 bool Guardian::UpdateStats(Stats stat)
 {
     if (stat >= MAX_STATS)
@@ -1251,3 +1252,4 @@ void Guardian::SetBonusDamage(int32 damage)
     if (GetOwner()->GetTypeId() == TYPEID_PLAYER)
         GetOwner()->SetUInt32Value(PLAYER_PET_SPELL_POWER, damage);
 }
+*/
