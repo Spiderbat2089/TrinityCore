@@ -23,11 +23,14 @@
 #include "Timer.h"
 
 class Creature;
+class Unit;
+
+static constexpr uint32 const MOVEMENT_CHECK_INTERVAL = 400;
 
 class FormationMovementGenerator : public MovementGeneratorMedium<Creature, FormationMovementGenerator>, public AbstractPursuer
 {
     public:
-        explicit FormationMovementGenerator(Unit* leader, float range, float angle, int32 point1, int32 point2);
+        explicit FormationMovementGenerator(Unit* formationLeader, Position const& formationOffset);
 
         MovementGeneratorType GetMovementGeneratorType() const override { return FORMATION_MOTION_TYPE; }
 
@@ -36,21 +39,15 @@ class FormationMovementGenerator : public MovementGeneratorMedium<Creature, Form
         void DoReset(Creature* owner) { DoInitialize(owner); };
         bool DoUpdate(Creature* owner, uint32 diff);
 
+        void LaunchMovement(Creature* owner, bool enforceAlignment = false);
+        void SetFormationOffset(Position const& formationOffset) { _formationOffset = formationOffset; }
+
     private:
         void MovementInform(Creature* owner);
-
-        void LaunchMovement(Creature* owner, Unit* target);
-
-        static constexpr uint32 FORMATION_MOVEMENT_INTERVAL = 1200; // sniffed (3 batch update cycles)
-        float const _range;
-        float _angle;
-        int32 const _point1;
-        int32 const _point2;
-        uint32 _lastLeaderSplineID;
-        bool _hasPredictedDestination;
-
+        Position _formationOffset;
         Position _lastLeaderPosition;
-        TimeTrackerSmall _nextMoveTimer;
+        int32 _movementTimer;
+        int32 _movementCheckTimer;
 };
 
 #endif // TRINITY_FORMATIONMOVEMENTGENERATOR_H

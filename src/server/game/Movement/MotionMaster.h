@@ -199,7 +199,7 @@ class TC_GAME_API MotionMaster
         void MovePath(WaypointPath& path, bool repeatable);
         void MoveRotate(uint32 time, RotateDirection direction);
 
-        void MoveFormation(Unit* leader, float range, float angle, int32 point1, int32 point2);
+        void MoveFormation(Unit* formationLeader, Position const& formationOffset);
 
         void LaunchMoveSpline(Movement::MoveSplineInit&& init, uint32 id = 0, MovementSlot slot = MOTION_SLOT_ACTIVE, MovementGeneratorType type = EFFECT_MOTION_TYPE);
     private:

@@ -18,6 +18,7 @@
 #ifndef __UNIT_H
 #define __UNIT_H
 
+#include "AIFormations.h"
 #include "Object.h"
 #include "EventProcessor.h"
 #include "CombatManager.h"
@@ -1736,6 +1737,9 @@ class TC_GAME_API Unit : public WorldObject
         // enables/disables combat permission of this unit
         void SetIgnoringCombat(bool apply) { _isIgnoringCombat = apply; }
 
+        // Formations
+        AIFormation& GetAIFormation() { return _aiFormation; }
+
     protected:
         explicit Unit (bool isWorldObject);
 
@@ -1880,6 +1884,8 @@ class TC_GAME_API Unit : public WorldObject
         std::array<std::unordered_set<AbstractPursuer*>, AsUnderlyingType(PursuingType::Max)> _unitsPursuingMe;
 
         bool _isIgnoringCombat;
+
+        AIFormation _aiFormation;
 };
 
 namespace Trinity

@@ -142,6 +142,8 @@ void FormationMgr::LoadCreatureFormations()
 
 void CreatureGroup::AddMember(Creature* member)
 {
+    return;
+
     TC_LOG_DEBUG("entities.unit", "CreatureGroup::AddMember: Adding unit GUID: %u.", member->GetGUID().GetCounter());
 
     //Check if it is a leader
@@ -150,15 +152,21 @@ void CreatureGroup::AddMember(Creature* member)
         TC_LOG_DEBUG("entities.unit", "Unit GUID: %u is formation leader. Adding group.", member->GetGUID().GetCounter());
         m_leader = member;
     }
+    else if (m_leader)
+        m_leader->GetAIFormation().AddFollower(member);
 
     m_members[member] = sFormationMgr->CreatureGroupMap.find(member->GetSpawnId())->second;
     member->SetFormation(this);
+
 }
 
 void CreatureGroup::RemoveMember(Creature* member)
 {
+    return;
     if (m_leader == member)
         m_leader = nullptr;
+    else if (m_leader)
+        m_leader->GetAIFormation().RemoveFollower(member);
 
     m_members.erase(member);
     member->SetFormation(nullptr);
@@ -220,13 +228,6 @@ void CreatureGroup::LeaderStartedMoving()
         Creature* member = itr->first;
         if (member == m_leader || !member->IsAlive() || member->GetVictim() || !(itr->second.GroupAI & FLAG_IDLE_IN_FORMATION))
             continue;
-
-        float angle = itr->second.FollowAngle + float(M_PI);
-        float dist = itr->second.FollowDistance;
-
-        MovementGenerator const* moveGen = member->GetMotionMaster()->GetMotionSlot(MOTION_SLOT_IDLE);
-        if (!moveGen || moveGen->GetMovementGeneratorType() != FORMATION_MOTION_TYPE)
-            member->GetMotionMaster()->MoveFormation(m_leader, dist, angle, itr->second.InversionPoint1, itr->second.InversionPoint2);
     }
 }
 

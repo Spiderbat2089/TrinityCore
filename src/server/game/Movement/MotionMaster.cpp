@@ -726,13 +726,13 @@ void MotionMaster::MoveRotate(uint32 time, RotateDirection direction)
     Mutate(new RotateMovementGenerator(time, direction), MOTION_SLOT_ACTIVE);
 }
 
-void MotionMaster::MoveFormation(Unit* leader, float range, float angle, int32 point1, int32 point2)
+void MotionMaster::MoveFormation(Unit* formationLeader, Position const& formationOffset)
 {
-    if (_owner->GetTypeId() == TYPEID_UNIT && leader)
-    {
-        TC_LOG_DEBUG("movement.motionmaster", "MotionMaster::MoveFormation: '%s', started to move in a formation with leader %s", _owner->GetGUID().ToString().c_str(), leader->GetGUID().ToString().c_str());
-        Mutate(new FormationMovementGenerator(leader, range, angle, point1, point2), MOTION_SLOT_IDLE);
-    }
+    if (!_owner->IsCreature())
+        return;
+
+    TC_LOG_DEBUG("movement.motionmaster", "MotionMaster::MoveFormation: '%s', started to move in a formation.", _owner->GetGUID().ToString().c_str());
+    Mutate(new FormationMovementGenerator(formationLeader, formationOffset), MOTION_SLOT_IDLE);
 }
 
 void MotionMaster::LaunchMoveSpline(Movement::MoveSplineInit&& init, uint32 id/*= 0*/, MovementSlot slot/*= MOTION_SLOT_ACTIVE*/, MovementGeneratorType type/*= EFFECT_MOTION_TYPE*/)

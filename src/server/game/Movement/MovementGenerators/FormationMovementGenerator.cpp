@@ -16,6 +16,7 @@
  */
 
 #include "FormationMovementGenerator.h"
+#include "AIFormations.h"
 #include "Creature.h"
 #include "CreatureAI.h"
 #include "CreatureGroups.h"
@@ -23,13 +24,39 @@
 #include "MoveSplineInit.h"
 #include "MoveSpline.h"
 
-FormationMovementGenerator::FormationMovementGenerator(Unit* leader, float range, float angle, int32 point1, int32 point2) :
-    AbstractPursuer(PursuingType::Formation, leader), _range(range), _angle(angle), _point1(point1), _point2(point2), _lastLeaderSplineID(0), _hasPredictedDestination(false) { }
+inline UnitMoveType SelectSpeedType(uint32 moveFlags)
+{
+    if (moveFlags & MOVEMENTFLAG_FLYING)
+    {
+        if (moveFlags & MOVEMENTFLAG_BACKWARD)
+            return MOVE_FLIGHT_BACK;
+        else
+            return MOVE_FLIGHT;
+    }
+    else if (moveFlags & MOVEMENTFLAG_SWIMMING)
+    {
+        if (moveFlags & MOVEMENTFLAG_BACKWARD)
+            return MOVE_SWIM_BACK;
+        else
+            return MOVE_SWIM;
+    }
+    else if (moveFlags & MOVEMENTFLAG_WALKING)
+        return MOVE_WALK;
+    else if (moveFlags & MOVEMENTFLAG_BACKWARD)
+        return MOVE_RUN_BACK;
+
+    return MOVE_RUN;
+}
+
+FormationMovementGenerator::FormationMovementGenerator(Unit* formationLeader, Position const& formationOffset) :
+    AbstractPursuer(PursuingType::Formation, formationLeader), _formationOffset(formationOffset), _movementTimer(0),
+    _movementCheckTimer(MOVEMENT_CHECK_INTERVAL)
+{
+}
 
 void FormationMovementGenerator::DoInitialize(Creature* owner)
 {
     owner->AddUnitState(UNIT_STATE_ROAMING);
-    _nextMoveTimer.Reset(0);
 }
 
 bool FormationMovementGenerator::DoUpdate(Creature* owner, uint32 diff)
@@ -39,129 +66,93 @@ bool FormationMovementGenerator::DoUpdate(Creature* owner, uint32 diff)
     if (!owner || !target)
         return false;
 
-    // Owner cannot move. Reset all fields and wait for next action
-    if (owner->HasUnitState(UNIT_STATE_NOT_MOVE) || owner->IsMovementPreventedByCasting())
-    {
-        _nextMoveTimer.Reset(0);
-        _hasPredictedDestination = false;
-        owner->ClearUnitState(UNIT_STATE_ROAMING_MOVE);
-        owner->StopMoving();
-        return true;
-    }
-
     // Update home position
     owner->SetHomePosition(owner->GetPosition());
 
-    // Leader has stopped moving, so do we as well
-    if (owner->HasUnitState(UNIT_STATE_ROAMING_MOVE) && _hasPredictedDestination && target->movespline->Finalized() && target->movespline->GetId() == _lastLeaderSplineID)
-    {
-        owner->StopMoving();
-        _nextMoveTimer.Reset(0);
-        _hasPredictedDestination = false;
-        return true;
-    }
-
-    // Formation leader has launched a new spline, launch a new one for our member as well
-    // This action does not reset the regular movement launch cycle interval
-    if (!target->movespline->Finalized() && target->movespline->GetId() != _lastLeaderSplineID)
-    {
-        // Update formation angle
-        if ((_point1 >= 0 || _point2 >= 0) && target->IsCreature())
-        {
-            if (CreatureGroup* formation = target->ToCreature()->GetFormation())
-            {
-                if (Creature* leader = formation->getLeader())
-                {
-                    uint8 currentWaypoint = leader->GetCurrentWaypointInfo().first;
-                    if (currentWaypoint == _point1 || currentWaypoint == _point2)
-                        _angle = float(M_PI) * 2 - _angle;
-                }
-            }
-        }
-
-        LaunchMovement(owner, target);
-        _lastLeaderSplineID = target->movespline->GetId();
-        return true;
-    }
-
-    _nextMoveTimer.Update(diff);
-    if (_nextMoveTimer.Passed())
-    {
-        _nextMoveTimer.Reset(FORMATION_MOVEMENT_INTERVAL);
-
-        // Our leader has a different position than on our last check, launch movement.
-        if (_lastLeaderPosition != target->GetPosition())
-        {
-            LaunchMovement(owner, target);
-            return true;
-        }
-    }
-
-    // We have reached our destination before launching a new movement. Allign facing with leader
     if (owner->HasUnitState(UNIT_STATE_ROAMING_MOVE) && owner->movespline->Finalized())
-    {
         owner->ClearUnitState(UNIT_STATE_ROAMING_MOVE);
-        owner->SetFacingTo(target->GetOrientation());
-        MovementInform(owner);
+
+    // Owner cannot move. Reset all fields and wait for next action
+    if (owner->HasUnitState(UNIT_STATE_NOT_MOVE) || owner->IsMovementPreventedByCasting())
+    {
+        _movementTimer = 0;
+        owner->ClearUnitState(UNIT_STATE_ROAMING_MOVE);
+        owner->StopMoving();
+        return true;
+    }
+
+    // Target is not moving. Stop movement and align to formation.
+    if (target->IsCreature() && target->movespline->Finalized())
+    {
+        if (_lastLeaderPosition != target->GetPosition())
+            LaunchMovement(owner);
+
+        _movementTimer = 0;
+        return true;
+    }
+
+    _movementCheckTimer -= diff;
+    if (_movementCheckTimer < 0)
+    {
+        _movementCheckTimer += MOVEMENT_CHECK_INTERVAL;
+    }
+
+    _movementTimer -= diff;
+    if (_movementTimer <= 0)
+    {
+        _movementTimer = target->GetAIFormation().GetNextFormationMovementTime();
+        LaunchMovement(owner);
+        return true;
     }
 
     return true;
 }
 
-void FormationMovementGenerator::LaunchMovement(Creature* owner, Unit* target)
+void FormationMovementGenerator::LaunchMovement(Creature* owner, bool enforceAlignment /*= false*/)
 {
     float relativeAngle = 0.f;
+    Unit* target = GetTarget();
 
     // Determine our relative angle to our current spline destination point
     if (!target->movespline->Finalized())
         relativeAngle = target->GetRelativeAngle(Vector3ToPosition(target->movespline->CurrentDestination()));
 
-    // Destination calculation
-    /*
-        According to sniff data, formation members have a periodic move interal of 1,2s.
-        Each of these splines has a exact duration of 1650ms +- 1ms when no pathfinding is involved.
-        To get a representative result like that we have to predict our formation leader's path
-        and apply our formation shape based on that destination.
-    */
     Position dest = target->GetPosition();
-    float velocity = 0.f;
+    float range = Position().GetExactDist2d(_formationOffset);
+    float angle = Position().GetRelativeAngle(_formationOffset);
+    float velocity = target->movespline->Finalized() ? target->GetSpeed(SelectSpeedType(target->GetUnitMovementFlags())) : target->movespline->Velocity();
 
     // Formation leader is moving. Predict our destination
-    if (!target->movespline->Finalized())
+    if (!target->movespline->Finalized() || target->isMoving())
     {
-        // Pick up leader's spline velocity
-        velocity = target->movespline->Velocity();
-
-        // Calculate travel distance to get a 1650ms result
-        float travelDist = velocity * 1.65f;
+        // Calculate travel distance to get a 1650ms result for creatures
+        float travelDist = target->IsCreature() ? velocity * 1.65f : velocity;
 
         // Move destination ahead...
         target->MovePositionToFirstCollision(dest, travelDist, relativeAngle);
         // ... and apply formation shape
-        target->MovePositionToFirstCollision(dest, _range, _angle + relativeAngle);
+        target->MovePositionToFirstCollision(dest, range, angle + relativeAngle);
 
         float distance = owner->GetExactDist(dest);
 
-        // Calculate catchup speed mod (Limit to a maximum of 50% of our original velocity
+        // Calculate catchup speed mod (limit to a maximum of 50% of our original velocity)
         float velocityMod = std::min<float>(distance / travelDist, 1.5f);
 
-        // Now we will always stay synch with our leader
+        // Now we will always stay sync with our leader
         velocity *= velocityMod;
-        _hasPredictedDestination = true;
     }
-    else
+    else if (target->IsCreature() || enforceAlignment)
     {
         // Formation leader is not moving. Just apply the base formation shape on his position.
-        target->MovePositionToFirstCollision(dest, _range, _angle + relativeAngle);
-        _hasPredictedDestination = false;
+        target->MovePositionToFirstCollision(dest, range, angle + relativeAngle);
+    }
+    else if (target->IsPlayer())
+    {
+        // Player is no longer moving. Stop movement and prepare to align
     }
 
-    // Leader is not moving, so just pick up his default walk speed
-    if (velocity == 0.f)
-        velocity = target->GetSpeed(MOVE_WALK);
-
     Movement::MoveSplineInit init(owner);
-    init.MoveTo(PositionToVector3(dest));
+    init.MoveTo(PositionToVector3(dest), false);
     init.SetVelocity(velocity);
     init.Launch();
 

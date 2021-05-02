@@ -193,7 +193,8 @@ void CreatureAI::JustAppeared()
                 if (Unit* owner = summon->GetCharmerOrOwner())
                 {
                     summon->GetMotionMaster()->Clear();
-                    summon->FollowTarget(owner);
+                    owner->GetAIFormation().AddFollower(summon);
+                    //summon->FollowTarget(owner);
                 }
             }
         }
