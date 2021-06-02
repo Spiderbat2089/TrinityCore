@@ -151,7 +151,8 @@ class TC_GAME_API SpellCastTargets
         void SetTargetFlag(SpellCastTargetFlags flag) { m_targetMask |= flag; }
 
         ObjectGuid GetOrigUnitTargetGUID() const;
-        void SetOrigUnitTarget(Unit* target);
+        ObjectGuid GetOrigObjectTargetGUID() const;
+        void SetOrigObjectTarget(WorldObject* target);
 
         ObjectGuid GetUnitTargetGUID() const;
         Unit* GetUnitTarget() const;

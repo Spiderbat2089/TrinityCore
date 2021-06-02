@@ -73,6 +73,11 @@ bool SpellImplicitTargetInfo::IsArea() const
     return GetSelectionCategory() == TARGET_SELECT_CATEGORY_AREA || GetSelectionCategory() == TARGET_SELECT_CATEGORY_CONE;
 }
 
+bool SpellImplicitTargetInfo::IsCone() const
+{
+    return GetSelectionCategory() == TARGET_SELECT_CATEGORY_CONE;
+}
+
 SpellTargetSelectionCategories SpellImplicitTargetInfo::GetSelectionCategory() const
 {
     return _data[_target].SelectionCategory;
@@ -402,6 +407,11 @@ bool SpellEffectInfo::IsAura(AuraType aura) const
 bool SpellEffectInfo::IsTargetingArea() const
 {
     return TargetA.IsArea() || TargetB.IsArea();
+}
+
+bool SpellEffectInfo::IsTargetingCone() const
+{
+    return TargetA.IsCone() || TargetB.IsCone();
 }
 
 bool SpellEffectInfo::IsAreaAuraEffect() const
@@ -1238,6 +1248,14 @@ bool SpellInfo::IsTargetingArea() const
 {
     for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
         if (Effects[i].IsEffect() && Effects[i].IsTargetingArea())
+            return true;
+    return false;
+}
+
+bool SpellInfo::IsTargetingCone() const
+{
+    for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
+        if (Effects[i].IsEffect() && Effects[i].IsTargetingCone())
             return true;
     return false;
 }

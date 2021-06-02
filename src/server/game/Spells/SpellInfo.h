@@ -212,6 +212,7 @@ public:
     SpellImplicitTargetInfo(uint32 target);
 
     bool IsArea() const;
+    bool IsCone() const;
     SpellTargetSelectionCategories GetSelectionCategory() const;
     SpellTargetReferenceTypes GetReferenceType() const;
     SpellTargetObjectTypes GetObjectType() const;
@@ -279,6 +280,7 @@ public:
     bool IsAura() const;
     bool IsAura(AuraType aura) const;
     bool IsTargetingArea() const;
+    bool IsTargetingCone() const;
     bool IsAreaAuraEffect() const;
     bool IsFarUnitTargetEffect() const;
     bool IsFarDestTargetEffect() const;
@@ -502,6 +504,7 @@ class TC_GAME_API SpellInfo
 
         bool IsAffectingArea() const;
         bool IsTargetingArea() const;
+        bool IsTargetingCone() const;
         bool NeedsExplicitUnitTarget() const;
         bool NeedsToBeTriggeredByCaster(SpellInfo const* triggeringSpell) const;
         bool IsSelfCast() const;

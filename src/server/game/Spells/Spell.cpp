@@ -259,11 +259,16 @@ ObjectGuid SpellCastTargets::GetOrigUnitTargetGUID() const
         case HighGuid::Pet:
             return m_origObjectTargetGUID;
         default:
-            return ObjectGuid();
+            return ObjectGuid::Empty;
     }
 }
 
-void SpellCastTargets::SetOrigUnitTarget(Unit* target)
+ObjectGuid SpellCastTargets::GetOrigObjectTargetGUID() const
+{
+    return m_origObjectTargetGUID;
+}
+
+void SpellCastTargets::SetOrigObjectTarget(WorldObject* target)
 {
     if (!target)
         return;
@@ -723,7 +728,7 @@ Spell::~Spell()
 void Spell::InitExplicitTargets(SpellCastTargets const& targets)
 {
     m_targets = targets;
-    m_targets.SetOrigUnitTarget(m_targets.GetUnitTarget());
+    m_targets.SetOrigObjectTarget(m_targets.GetObjectTarget());
     // this function tries to correct spell explicit targets for spell
     // client doesn't send explicit targets correctly sometimes - we need to fix such spells serverside
     // this also makes sure that we correctly send explicit targets to client (removes redundant data)
@@ -3366,10 +3371,16 @@ void Spell::prepare(SpellCastTargets const& targets, AuraEffect const* triggered
     // Creatures focus their target when possible
     if (m_casttime && m_caster->IsCreature() && !m_spellInfo->IsNextMeleeSwingSpell() && !IsAutoRepeat() && !m_caster->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_POSSESSED))
     {
-        // Channeled spells and some triggered spells do not focus a cast target. They face their target later on via channel object guid and via spell attribute or not at all
+        // Cone target spells are special as they usually do not require explicit targets but still may focus a target during cast, so let's trust the original input for once
+        bool useOriginalTarget = m_spellInfo->IsTargetingCone() && m_targets.GetObjectTargetGUID().IsEmpty();
         bool const focusTarget = !m_spellInfo->IsChanneled() && !(_triggeredCastFlags & TRIGGERED_IGNORE_SET_FACING);
-        if (focusTarget && m_targets.GetObjectTarget() && m_caster != m_targets.GetObjectTarget())
-            m_caster->ToCreature()->SetSpellFocus(this, m_targets.GetObjectTarget());
+
+        ObjectGuid focusTargetGuid = useOriginalTarget ? m_targets.GetOrigObjectTargetGUID() : m_targets.GetObjectTargetGUID();
+        WorldObject const* focusTargetObject = focusTarget ? ObjectAccessor::GetWorldObject(*m_caster, focusTargetGuid) : nullptr;
+
+        // Channeled spells and some triggered spells do not focus a cast target. They face their target later on via channel object guid and via spell attribute or not at all
+        if (focusTargetObject && m_caster != focusTargetObject)
+            m_caster->ToCreature()->SetSpellFocus(this, focusTargetObject);
         else
             m_caster->ToCreature()->SetSpellFocus(this, nullptr);
     }
