@@ -35,6 +35,13 @@ target_link_libraries(ipc
     shared
     zmqpp)
 
+if( WIN32 )
+  target_link_libraries(ipc
+    PUBLIC
+      ws2_32
+      iphlpapi)
+endif()
+
 set_target_properties(ipc
     PROPERTIES
       FOLDER
